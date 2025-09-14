@@ -1,8 +1,9 @@
 {
   "name": "retell-agent",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Erendiz Hotel Retell Agent Backend",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
     "render-start": "node server.js"

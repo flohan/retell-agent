@@ -1,25 +1,14 @@
-# render.yaml
-# Infrastruktur-Definition für Render Deployment
-
 services:
   - type: web
     name: retell-agent
     env: node
     plan: free
-    region: frankfurt
-
-    # Node.js Version
     buildCommand: "npm install"
     startCommand: "npm run render-start"
-
     envVars:
-      - key: NODE_VERSION
-        value: 22.19.0
+      - key: TOOL_SECRET
+        sync: false
       - key: HR_TOKEN
-        sync: false   # im Render Dashboard eintragen
+        sync: false
       - key: HR_ID
-        sync: false   # im Render Dashboard eintragen
-      - key: X_TOOL_SECRET
-        sync: false   # im Render Dashboard eintragen
-      - key: DEBUG
-        value: "false"
+        sync: false
