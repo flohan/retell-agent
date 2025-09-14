@@ -1,15 +1,21 @@
-{
-  "name": "retell-agent",
-  "version": "1.0.0",
-  "type": "module",
-  "main": "server.js",
-"scripts": {
-  "start": "node server.js",
-  "render-build": "echo 'Nothing to build'",
-  "render-start": "node server.js"
-},
-  "dependencies": {
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+import express from "express";
+
+const app = express();
+app.use(express.json());
+
+const REQUIRED_SECRET = process.env.X_TOOL_SECRET;
+
+app.post("/retell/tool", (req, res) => {
+  const secret = req.headers["x-tool-secret"];
+  if (!REQUIRED_SECRET || secret !== REQUIRED_SECRET) {
+    return res.status(403).json({ error: "Forbidden: Invalid or missing secret" });
   }
-}
+
+  // Hier deine Tool-Logik
+  res.json({ result: "Tool request accepted" });
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log("✅ Agent backend running");
+});
+
