@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
- "scripts": {
+"scripts": {
   "start": "node server.js",
   "render-build": "echo 'Nothing to build'",
   "render-start": "node server.js"
