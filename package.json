@@ -2,14 +2,14 @@
   "name": "retell-agent",
   "version": "1.0.0",
   "type": "module",
-  "private": true,
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node server.js",
+    "render-start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2"
-  },
-  "engines": {
-    "node": "22.x"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2"
   }
 }
