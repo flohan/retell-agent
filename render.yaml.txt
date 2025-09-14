@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: retell-agent
+    env: node
+    plan: free
+    region: frankfurt
+    buildCommand: "npm ci && npm run render-build"
+    startCommand: "npm run render-start"
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: HR_TOKEN
+        sync: false
+      - key: HR_ID
+        sync: false
+    healthCheckPath: /healthz
+    healthCheckTimeout: 10000
