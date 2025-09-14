@@ -7,74 +7,73 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// Secret aus Environment
-const TOOL_SECRET = process.env.TOOL_SECRET;
-const HR_TOKEN = process.env.HR_TOKEN;
-const HR_ID = process.env.HR_ID;
+// ---- Robust Secret-Check ----
+const TOOL_SECRET = (process.env.TOOL_SECRET || process.env.X_TOOL_SECRET || "").trim();
 
-// Healthcheck
-app.get("/healthz", (req, res) => {
-  res.json({ ok: true, node: process.version, env: process.env.RENDER ? "render" : "local" });
-});
-
-// Middleware Secret-Check
 function checkSecret(req, res, next) {
-  const incoming = req.headers["x-tool-secret"];
+  const incoming = (req.headers["x-tool-secret"] || "").toString().trim();
   if (!TOOL_SECRET || incoming !== TOOL_SECRET) {
+    console.error("[AUTH FAIL] expected:", TOOL_SECRET, "got:", incoming);
     return res.status(401).json({ error: "Unauthorized: Invalid x-tool-secret" });
   }
   next();
 }
 
-// Kurz-Endpunkte
+// ---- Health Endpoint ----
+app.get("/healthz", (req, res) => {
+  res.json({
+    ok: true,
+    node: process.version,
+    env: process.env.RENDER ? "render" : "local",
+  });
+});
 
-// Zimmerliste
-app.post("/retell/tool/list_rooms", checkSecret, async (req, res) => {
+// ---- Retell Tool Handler ----
+app.post("/retell/tool/:tool", checkSecret, async (req, res) => {
+  const { tool } = req.params;
+  const args = req.body || {};
+
   try {
-    if (!HR_TOKEN || !HR_ID) {
-      return res.status(500).json({ error: "HR_TOKEN/HR_ID fehlen (Env Variablen)" });
-    }
-
-    const url = `https://app.hotelrunner.com/api/v2/apps/rooms?token=${HR_TOKEN}&hr_id=${HR_ID}`;
-    const hrRes = await fetch(url);
-    const data = await hrRes.json();
-
-    const rooms = (data.rooms || []).map(r => r.code || r.id);
-    res.json({
-      result: {
-        count: rooms.length,
-        spoken: `${rooms.length} Apartments insgesamt`,
-        rooms
+    switch (tool) {
+      case "list_rooms": {
+        // Beispiel-Rückgabe
+        const rooms = [
+          "01 Apartment Phaselis",
+          "02 Apartment Armut",
+          "03 Apartment Olympos",
+          "04 Apartment Cirali",
+          "05 Apartment Adrasan",
+        ];
+        return res.json({
+          result: {
+            count: rooms.length,
+            spoken: `${rooms.length} Apartments insgesamt`,
+            rooms,
+          },
+        });
       }
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.toString() });
+
+      case "check_availability": {
+        const { from_date, to_date, adults, children } = args;
+        // Dummy-Check: Immer verfügbar
+        return res.json({
+          result: {
+            available: true,
+            spoken: `Ja, wir haben vom ${from_date} bis ${to_date} für ${adults} Erwachsene${children ? " und " + children + " Kinder" : ""} Apartments frei.`,
+          },
+        });
+      }
+
+      default:
+        return res.status(400).json({ error: "Unknown tool" });
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message });
   }
 });
 
-// Verfügbarkeit
-app.post("/retell/tool/check_availability", checkSecret, async (req, res) => {
-  try {
-    const { from_date, to_date, adults = 2, children = 0 } = req.body;
-
-    if (!from_date || !to_date) {
-      return res.status(400).json({ error: "from_date und to_date erforderlich" });
-    }
-
-    // Beispiel-Response (hier könntest du später HotelRunner-API anbinden)
-    res.json({
-      result: {
-        available: true,
-        spoken: `Ja, wir haben vom ${from_date} bis ${to_date} Platz für ${adults} Erwachsene.`,
-        params: { from_date, to_date, adults, children }
-      }
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.toString() });
-  }
-});
-
-// Start Server
+// ---- Start ----
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Agent backend running on http://localhost:${PORT}`);
