@@ -2,13 +2,14 @@ services:
   - type: web
     name: retell-agent
     env: node
-    region: frankfurt
     plan: free
-    buildCommand: npm install
-    startCommand: npm run render-start
-    autoDeploy: true
+    region: frankfurt
+    buildCommand: "npm install --prefer-online"
+    startCommand: "npm run render-start"
     envVars:
       - key: TOOL_SECRET
         sync: false
-    healthCheckPath: /healthz
+    healthCheckPath: "/healthz"
+    autoDeploy: true
+    
 
