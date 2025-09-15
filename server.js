@@ -3,8 +3,8 @@
 // - Public:  POST /retell/public/check_availability   (kein Secret, für Retell-Flow)
 // - Secure:  POST /retell/tool/check_availability     (mit tool-secret)
 //            POST /retell/tool/list_rooms             (mit tool-secret)
-// - Robuste DE-Datumserkennung (inkl. Zahlwörter), Sanity-Checks, ISO-CANON.
-// - Einheitliche JSON-Fehlerausgaben (Error-Handler nun am ENDE!)
+// - Robuste DE-Datumserkennung (inkl. Zahlwörter), Sanity-Checks, ISO-Canonicalization
+// - Einheitliche JSON-Fehlerausgaben (Error-Handler am ENDE)
 // - Secret-Check deckt "/retell/tool" UND "/retell/tool/*" ab.
 //
 // Start lokal:  TOOL_SECRET=MYSECRET123 node server.js
@@ -23,7 +23,7 @@ app.use(express.json({ limit: "100kb", strict: true }));
 /* -------------------- Secret für /retell/tool[/*] --- */
 const TOOL_SECRET = (process.env.TOOL_SECRET || process.env.TOOLSECRET || "").trim();
 function checkSecret(req, res, next) {
-  // WICHTIG: deckt "/retell/tool" und "/retell/tool/..." ab
+  // Deckt "/retell/tool" und "/retell/tool/..." ab
   if (req.path === "/retell/tool" || req.path.startsWith("/retell/tool/")) {
     const incoming = (req.headers["tool-secret"] || "").toString().trim();
     if (!TOOL_SECRET || incoming !== TOOL_SECRET) {
@@ -127,7 +127,6 @@ function parseDayMonthWords(text) {
 function parseDateSmart(raw, type, baseDate = new Date()) {
   const notes = [];
   let needs_confirmation = false;
-  let used_default_year = false;
 
   if (!raw || typeof raw !== "string") {
     return { ok:false, reason:`${type} fehlt oder ist ungültig`, needs_confirmation:false, notes };
@@ -165,7 +164,7 @@ function parseDateSmart(raw, type, baseDate = new Date()) {
     if (isValidYmd(y,m,d)) return { ok:true, date:`${y}-${pad2(m)}-${pad2(d)}`, needs_confirmation, notes };
   }
 
-  // DD.MM(.YYYY) / DD-MM(-YYYY) / DD/MM(/YYYY), optionaler Schluss-Punkt
+  // DD.MM(.YYYY) / DD-MM(-YYYY) / DD/MM(/YYYY) — optionaler Schluss-Punkt
   const m1 = s.match(/^(\d{1,2})[.\-/]\s*(\d{1,2})(?:[.\-/]\s*(\d{2,4}))?\s*\.?$/);
   if (m1) {
     let d = +m1[1], m = +m1[2];
@@ -326,7 +325,7 @@ app.post("/retell/tool/check_availability", (req, res, next) => {
   catch (err) { next(err); }
 });
 
-// (Optional) Wenn du später einen Dispatcher willst:
+// Optionaler Dispatcher, falls benötigt:
 // app.post("/retell/tool", (req, res, next) => {
 //   try {
 //     const { name, arguments: args = {} } = req.body || {};
