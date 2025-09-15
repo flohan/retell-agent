@@ -1,6 +1,6 @@
 // server.js — Retell Hotel Agent Backend
-// - Einheitlicher Secret-Header nur für /retell/tool/*
-// - Öffentliche Route /retell/public/check_availability ohne Secret
+// - Secret-Header nur für /retell/tool/*
+// - Öffentliche Route /retell/public/check_availability (kein Secret nötig)
 // - Robuste Datumserkennung (DE), einfache Availability-Logik, Healthcheck
 
 import express from "express";
@@ -10,7 +10,7 @@ dotenv.config();
 
 const app = express();
 
-/* -------------------- JSON-Parser + Fehlerbehandlung -------------------- */
+/* -------------------- JSON-Parser + Fehler -------------------- */
 app.use(express.json({ limit: "100kb", strict: true }));
 app.use((err, _req, res, next) => {
   if (err?.type === "entity.parse.failed") {
@@ -19,7 +19,7 @@ app.use((err, _req, res, next) => {
   return next(err);
 });
 
-/* -------------------- Secret-Header nur für /retell/tool/* --------------- */
+/* -------------------- Secret für /retell/tool/* --------------- */
 const TOOL_SECRET = (process.env.TOOL_SECRET || process.env.TOOLSECRET || "").trim();
 function checkSecret(req, res, next) {
   if (req.path.startsWith("/retell/tool")) {
@@ -32,7 +32,7 @@ function checkSecret(req, res, next) {
 }
 app.use(checkSecret);
 
-/* -------------------- Healthcheck --------------------------------------- */
+/* -------------------- Health ---------------------------------- */
 app.get("/healthz", (_req, res) => {
   res.json({
     ok: true,
@@ -42,7 +42,7 @@ app.get("/healthz", (_req, res) => {
   });
 });
 
-/* -------------------- Datumshilfen (DE) --------------------------------- */
+/* -------------------- Datum (DE) ------------------------------- */
 const MONTHS_DE = {
   jan: 1, jän: 1, januar: 1,
   feb: 2, februar: 2,
@@ -169,6 +169,12 @@ function computeListRooms() {
   return { result: { count: names.length, spoken: `${names.length} Apartments insgesamt`, rooms: names } };
 }
 
+/**
+ * Eingaben (beliebige Kombination):
+ *  - from_date / to_date  (ISO: YYYY-MM-DD)
+ *  - checkin_raw / checkout_raw  (natürliche Sprache: "22.10.", "nächsten Dienstag", "in 3 Tagen")
+ *  - adults, children
+ */
 function computeCheckAvailability(payload) {
   const body = payload || {};
   const now = new Date();
