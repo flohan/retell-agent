@@ -8,7 +8,5 @@ services:
     envVars:
       - key: TOOL_SECRET
         sync: false
-      - key: HR_TOKEN
-        sync: false
-      - key: HR_ID
-        sync: false
+      - key: PORT
+        value: 10000
