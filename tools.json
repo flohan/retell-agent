@@ -1,0 +1,113 @@
+[
+  {
+    "name": "extract_core",
+    "description": "Regelbasierte Extraktion (public).",
+    "tool_id": "tool-extract-core",
+    "type": "custom",
+    "url": "https://retell-agent.onrender.com/retell/public/extract_core",
+    "timeout_ms": 8000,
+    "request_template": {
+      "utterance": "{{last_user_message}}",
+      "text": "{{user_text}}",
+      "message": "{{input_text}}",
+      "asr_text": "{{ASR_TEXT}}",
+      "transcript": "{{TRANSCRIPT_LAST_USER}}",
+      "user_message": "{{USER_MESSAGE}}",
+      "raw_user_text": "{{RAW_USER_TEXT}}",
+      "conversation_last_user": "{{conversation.last_user_message}}"
+    }
+  },
+  {
+    "name": "extract_core_llm",
+    "description": "LLM-basierte Extraktion (geschützt).",
+    "tool_id": "tool-extract-core-llm",
+    "type": "custom",
+    "url": "https://retell-agent.onrender.com/retell/tool/extract_core_llm",
+    "timeout_ms": 9000,
+    "request_template": {
+      "utterance": "{{last_user_message}}",
+      "text": "{{user_text}}",
+      "message": "{{input_text}}",
+      "asr_text": "{{ASR_TEXT}}",
+      "transcript": "{{TRANSCRIPT_LAST_USER}}",
+      "user_message": "{{USER_MESSAGE}}",
+      "raw_user_text": "{{RAW_USER_TEXT}}",
+      "conversation": { "last_user_message": "{{conversation.last_user_message}}" }
+    },
+    "headers": {
+      "tool-secret": "<YOUR_SECRET>"
+    }
+  },
+  {
+    "name": "check_availability",
+    "description": "Prüft Verfügbarkeit (Slim).",
+    "tool_id": "tool-check-availability",
+    "type": "custom",
+    "url": "https://retell-agent.onrender.com/retell/tool/check_availability_slim",
+    "timeout_ms": 12000,
+    "request_template": {
+      "from_date": "{{check_in}}",
+      "to_date": "{{check_out}}",
+      "adults": "{{adults}}",
+      "children": "{{children}}"
+    },
+    "headers": { "tool-secret": "<YOUR_SECRET>" }
+  },
+  {
+    "name": "quote",
+    "description": "Berechnet Gesamtpreis in EUR/TRY (public).",
+    "tool_id": "tool-quote",
+    "type": "custom",
+    "url": "https://retell-agent.onrender.com/retell/public/quote",
+    "timeout_ms": 12000,
+    "request_template": {
+      "check_in": "{{check_in}}",
+      "check_out": "{{check_out}}",
+      "adults": "{{adults}}",
+      "children": "{{children}}",
+      "board": "{{board}}",
+      "club_care": "{{club_care}}"
+    }
+  },
+  {
+    "name": "commit_booking",
+    "description": "Verbindlich buchen.",
+    "tool_id": "tool-commit",
+    "type": "custom",
+    "url": "https://retell-agent.onrender.com/retell/tool/commit_booking",
+    "timeout_ms": 12000,
+    "request_template": {
+      "email": "{{email}}",
+      "check_in": "{{check_in}}",
+      "check_out": "{{check_out}}",
+      "adults": "{{adults}}",
+      "children": "{{children}}",
+      "board": "{{board}}",
+      "club_care": "{{club_care}}"
+    },
+    "headers": { "tool-secret": "<YOUR_SECRET>" }
+  },
+  {
+    "name": "send_offer",
+    "description": "Versendet Angebot per E-Mail.",
+    "tool_id": "tool-send-offer",
+    "type": "custom",
+    "url": "https://retell-agent.onrender.com/retell/tool/send_offer",
+    "timeout_ms": 12000,
+    "request_template": {
+      "email": "{{email}}",
+      "quote_eur": "{{price_eur}}",
+      "quote_try": "{{price_try}}",
+      "fx": "{{fx}}",
+      "details": {
+        "check_in": "{{check_in}}",
+        "check_out": "{{check_out}}",
+        "adults": "{{adults}}",
+        "children": "{{children}}",
+        "board": "{{board}}",
+        "club_care": "{{club_care}}"
+      }
+    },
+    "headers": { "tool-secret": "<YOUR_SECRET>" }
+  }
+]
