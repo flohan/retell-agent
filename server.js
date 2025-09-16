@@ -34,7 +34,7 @@ app.get("/healthz", (req, res) => {
   res.status(200).json({
     ok: true,
     service: "Retell Hotel Agent Backend",
-    version: "2.1.0",
+    version: "2.3.0",
     node: process.version,
     env: "render",
     timestamp: new Date().toISOString(),
@@ -42,78 +42,67 @@ app.get("/healthz", (req, res) => {
   });
 });
 
-/* ---------- Tool: list_rooms (optional) ---------- */
-app.post("/retell/tool/list_rooms", requireToolSecret, (_req, res) => {
-  const rooms = [
-    { code: "STD", name: "Standard Apartment", maxGuests: 2, rate: 80 },
-    { code: "DLX", name: "Deluxe Apartment", maxGuests: 3, rate: 110 },
-    { code: "STE", name: "Suite", maxGuests: 4, rate: 150 }
-  ];
-  res.json({ ok: true, rooms });
-});
-
-/* ---------- Tool: availability (voll) ---------- */
-app.post("/retell/tool/check_availability", requireToolSecret, (req, res) => {
+/* ---------- Public: extract_core (robust: akzeptiert mehrere Feldnamen) ---------- */
+app.post("/retell/public/extract_core", (req, res) => {
   try {
     const b = req.body || {};
-    const from_date = b.from_date || b.check_in || b.checkin || b.date_from || b.start || b.start_date;
-    const to_date   = b.to_date   || b.check_out || b.checkout || b.date_to   || b.end   || b.end_date;
-    const adults    = b.adults ?? b.adult ?? b.guests ?? 2;
-    const children  = b.children ?? b.kids ?? 0;
+    const utterance =
+      b.utterance || b.text || b.message || b.query || b.user_text || b.userMessage || "";
 
-    if (!from_date || !to_date) {
-      return res.status(200).json({
-        ok: false, code: "MISSING_DATES", result: null,
-        spoken: "Damit ich prüfen kann, brauche ich An- und Abreisedatum."
-      });
-    }
+    const text = String(utterance || "").toLowerCase();
 
-    const nights = nightsBetween(from_date, to_date);
-    const totalGuests = Number(adults) + Number(children);
-    const available = nights > 0 && totalGuests <= 4;
-
-    const fmt = (d) =>
-      new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
-
-    const result = {
-      checkin: from_date,
-      checkout: to_date,
-      checkin_formatted: fmt(from_date),
-      checkout_formatted: fmt(to_date),
-      nights,
-      adults: Number(adults),
-      children: Number(children),
-      total_guests: totalGuests,
-      available_rooms: available
-        ? [
-            { code: "STD", name: "Standard Apartment", rate: 80, maxGuests: 2, pricePerNight: 80, totalPrice: 80 * nights, currency: "EUR" },
-            { code: "DLX", name: "Deluxe Apartment", rate: 110, maxGuests: 3, pricePerNight: 110, totalPrice: 110 * nights, currency: "EUR" },
-            { code: "STE", name: "Suite", rate: 150, maxGuests: 4, pricePerNight: 150, totalPrice: 150 * nights, currency: "EUR" }
-          ]
-        : []
-    };
-
-    const spoken = available
-      ? `Für ${nights} Nacht${nights > 1 ? "e" : ""} vom ${result.checkin_formatted} bis ${result.checkout_formatted} haben wir ${result.available_rooms.length} Apartments für ${totalGuests} Gäste verfügbar.`
-      : "Für die gewählten Daten ist derzeit nichts frei.";
-
-    return res.json({ ok: true, result, spoken });
-  } catch {
-    return res.status(200).json({
-      ok: false, code: "INTERNAL_ERROR", result: null,
-      spoken: "Es gab ein technisches Problem bei der Prüfung."
+    // Datumsparser: dd.mm. oder dd.mm.yyyy
+    const dateRe = /(\b\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?/g;
+    const found = [...text.matchAll(dateRe)].map(m => {
+      const d = parseInt(m[1],10), mo = parseInt(m[2],10), y = m[3] ? parseInt(m[3],10) : (new Date()).getFullYear();
+      const year = y < 100 ? 2000 + y : y;
+      return new Date(year, mo - 1, d).toISOString().slice(0,10);
     });
+    const check_in  = found[0] || null;
+    const check_out = found[1] || null;
+
+    // Erwachsene / Kinder
+    const oneAdultRe = /(1\s*(erwachsene|erwachsener|person))/;
+    const adultsRe   = /(\d+)\s*(erwachsene|erwachsener|personen)/;
+    const kidsRe     = /(\d+)\s*(kind|kinder)/;
+
+    let adults = 1;
+    if (adultsRe.test(text))   adults = parseInt(text.match(adultsRe)[1],10);
+    else if (oneAdultRe.test(text)) adults = 1;
+
+    let children = 0;
+    if (kidsRe.test(text)) children = parseInt(text.match(kidsRe)[1],10);
+    if (/keine kinder|ohne kinder|keine\s*kinder/.test(text)) children = 0;
+
+    return res.json({ ok: true, check_in, check_out, adults, children, raw: utterance || null });
+  } catch {
+    return res.status(200).json({ ok: false });
   }
 });
 
-/* ---------- Tool: availability (SLIM für Retell) ---------- */
+/* ---------- Tool: availability (SLIM, robust) ---------- */
 app.post("/retell/tool/check_availability_slim", requireToolSecret, (req, res) => {
   try {
     const b = req.body || {};
-    const from_date = b.from_date || b.check_in || b.checkin || b.date_from || b.start || b.start_date;
-    const to_date   = b.to_date   || b.check_out || b.checkout || b.date_to   || b.end   || b.end_date;
-    const adults    = b.adults ?? b.adult ?? b.guests ?? 2;
-    const children  = b.children ?? b.kids ?? 0;
+    const toISO = (dmy) => {
+      if (!dmy) return null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dmy)) return dmy;
+      const m = String(dmy).match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?$/);
+      if (m) {
+        const d = parseInt(m[1],10), mo = parseInt(m[2],10);
+        const y = m[3] ? parseInt(m[3],10) : (new Date()).getFullYear();
+        const year = y < 100 ? 2000 + y : y;
+        const dt = new Date(year, mo - 1, d);
+        return dt.toISOString().slice(0,10);
+      }
+      const dt = new Date(dmy);
+      return isNaN(dt) ? null : dt.toISOString().slice(0,10);
+    };
+
+    const from_date = toISO(b.from_date || b.check_in);
+    const to_date   = toISO(b.to_date   || b.check_out);
+    const adults    = b.adults ?? 2;
+    const children  = b.children ?? 0;
 
     if (!from_date || !to_date) {
       return res.status(200).json({
@@ -123,13 +112,11 @@ app.post("/retell/tool/check_availability_slim", requireToolSecret, (req, res) =
       });
     }
 
-    const nights = nightsBetween(from_date, to_date);
+    const nights = Math.max(0, Math.ceil((new Date(to_date) - new Date(from_date)) / 86400000));
     const totalGuests = Number(adults) + Number(children);
     const available = nights > 0 && totalGuests <= 4;
 
-    const fmt = (d) =>
-      new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
-
+    const fmt = (d) => new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
     const spoken = available
       ? `Für ${nights} Nacht${nights > 1 ? "e" : ""} vom ${fmt(from_date)} bis ${fmt(to_date)} haben wir passende Zimmer verfügbar.`
       : "Für die gewählten Daten ist derzeit nichts frei.";
@@ -144,38 +131,24 @@ app.post("/retell/tool/check_availability_slim", requireToolSecret, (req, res) =
   }
 });
 
-/* ---------- Public: quote (voll) ---------- */
+/* ---------- Public: quote ---------- */
 app.post("/retell/public/quote", (req, res) => {
   try {
-    const {
-      check_in, check_out,
-      adults = 2, children = 0,
-      board = "frühstück", club_care = false, currency = "EUR"
-    } = req.body || {};
-
+    const { check_in, check_out, adults = 2, children = 0, board = "frühstück", club_care = false } = req.body || {};
     const nights = nightsBetween(check_in, check_out);
     if (!check_in || !check_out || nights <= 0) {
       return res.status(400).json({ ok: false, error: "invalid dates" });
     }
-
     const basePerNight = 90;
     const boardAddMap = { "ohne verpflegung": 0, "frühstück": 8, "halbpension": 18, "vollpension": 28 };
     const boardAdd = boardAddMap[String(board).toLowerCase()] ?? 8;
     const clubCareAdd = club_care ? 220 : 0;
-
     const total_eur = euro(nights * (basePerNight + boardAdd) + clubCareAdd);
     const fx = 48.0;
     const total_try = Math.round(total_eur * fx);
 
-    res.json({
-      ok: true,
-      data: {
-        total_eur, total_try, fx,
-        currency_in: "EUR", currency_out: "TRY",
-        nights,
-        breakdown: { basePerNight, boardAdd, clubCareAdd, board, adults: Number(adults), children: Number(children) }
-      }
-    });
+    res.json({ ok: true, data: { total_eur, total_try, fx, nights,
+      breakdown: { basePerNight, boardAdd, clubCareAdd, board, adults, children } } });
   } catch {
     res.status(500).json({ ok: false, error: "internal_error" });
   }
@@ -185,34 +158,15 @@ app.post("/retell/public/quote", (req, res) => {
 app.post("/retell/tool/commit_booking", requireToolSecret, (req, res) => {
   const { email, check_in, check_out, adults, children, board, club_care } = req.body || {};
   if (!email) return res.status(400).json({ ok: false, error: "missing email" });
-
-  return res.json({
-    ok: true,
-    data: {
-      booking_id: "bk_" + Date.now(),
-      email, check_in, check_out, adults, children, board, club_care: !!club_care
-    }
-  });
+  res.json({ ok: true, data: { booking_id: "bk_" + Date.now(), email, check_in, check_out, adults, children, board, club_care: !!club_care } });
 });
 
 /* ---------- Tool: send offer ---------- */
 app.post("/retell/tool/send_offer", requireToolSecret, (req, res) => {
   const { email, quote_eur, quote_try, fx, details } = req.body || {};
   if (!email) return res.status(400).json({ ok: false, error: "missing email" });
-
-  return res.json({
-    ok: true,
-    data: {
-      sent: true,
-      to: email,
-      subject: "Ihr Angebot – Erendiz Hotel",
-      preview: `Gesamt: €${quote_eur} (~₺${quote_try} @ ${fx})`,
-      details
-    }
-  });
+  res.json({ ok: true, data: { sent: true, to: email, subject: "Ihr Angebot – Erendiz Hotel", preview: `Gesamt: €${quote_eur} (~₺${quote_try} @ ${fx})`, details } });
 });
 
 /* ---------- Start ---------- */
-app.listen(PORT, () => {
-  console.log(`[retell-agent] listening on :${PORT}`);
-});
+app.listen(PORT, () => { console.log(`[retell-agent] listening on :${PORT}`); });
