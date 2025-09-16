@@ -43,7 +43,7 @@ app.get("/healthz", (req, res) => {
 });
 
 /* ---------- Tool: list_rooms (optional) ---------- */
-app.post("/retell/tool/list_rooms", requireToolSecret, (req, res) => {
+app.post("/retell/tool/list_rooms", requireToolSecret, (_req, res) => {
   const rooms = [
     { code: "STD", name: "Standard Apartment", maxGuests: 2, rate: 80 },
     { code: "DLX", name: "Deluxe Apartment", maxGuests: 3, rate: 110 },
@@ -55,10 +55,19 @@ app.post("/retell/tool/list_rooms", requireToolSecret, (req, res) => {
 /* ---------- Tool: availability (voll) ---------- */
 app.post("/retell/tool/check_availability", requireToolSecret, (req, res) => {
   try {
-    const { from_date, to_date, adults = 2, children = 0 } = req.body || {};
+    const b = req.body || {};
+    const from_date = b.from_date || b.check_in || b.checkin || b.date_from || b.start || b.start_date;
+    const to_date   = b.to_date   || b.check_out || b.checkout || b.date_to   || b.end   || b.end_date;
+    const adults    = b.adults ?? b.adult ?? b.guests ?? 2;
+    const children  = b.children ?? b.kids ?? 0;
+
     if (!from_date || !to_date) {
-      return res.status(400).json({ ok: false, error: "missing dates" });
+      return res.status(200).json({
+        ok: false, code: "MISSING_DATES", result: null,
+        spoken: "Damit ich prüfen kann, brauche ich An- und Abreisedatum."
+      });
     }
+
     const nights = nightsBetween(from_date, to_date);
     const totalGuests = Number(adults) + Number(children);
     const available = nights > 0 && totalGuests <= 4;
@@ -88,30 +97,36 @@ app.post("/retell/tool/check_availability", requireToolSecret, (req, res) => {
       ? `Für ${nights} Nacht${nights > 1 ? "e" : ""} vom ${result.checkin_formatted} bis ${result.checkout_formatted} haben wir ${result.available_rooms.length} Apartments für ${totalGuests} Gäste verfügbar.`
       : "Für die gewählten Daten ist derzeit nichts frei.";
 
-    return res.json({
-      ok: true,
-      result,
-      meta: {
-        needs_confirmation: false,
-        input_format: { checkin: "iso", checkout: "iso" }
-      },
-      spoken
+    return res.json({ ok: true, result, spoken });
+  } catch {
+    return res.status(200).json({
+      ok: false, code: "INTERNAL_ERROR", result: null,
+      spoken: "Es gab ein technisches Problem bei der Prüfung."
     });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: "internal_error" });
   }
 });
 
 /* ---------- Tool: availability (SLIM für Retell) ---------- */
 app.post("/retell/tool/check_availability_slim", requireToolSecret, (req, res) => {
   try {
-    const { from_date, to_date, adults = 2, children = 0 } = req.body || {};
+    const b = req.body || {};
+    const from_date = b.from_date || b.check_in || b.checkin || b.date_from || b.start || b.start_date;
+    const to_date   = b.to_date   || b.check_out || b.checkout || b.date_to   || b.end   || b.end_date;
+    const adults    = b.adults ?? b.adult ?? b.guests ?? 2;
+    const children  = b.children ?? b.kids ?? 0;
+
     if (!from_date || !to_date) {
-      return res.status(400).json({ ok: false, error: "missing dates" });
+      return res.status(200).json({
+        ok: false, code: "MISSING_DATES",
+        availability_ok: false, nights: 0,
+        spoken: "Damit ich prüfen kann, brauche ich An- und Abreisedatum."
+      });
     }
+
     const nights = nightsBetween(from_date, to_date);
     const totalGuests = Number(adults) + Number(children);
     const available = nights > 0 && totalGuests <= 4;
+
     const fmt = (d) =>
       new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
 
@@ -121,7 +136,11 @@ app.post("/retell/tool/check_availability_slim", requireToolSecret, (req, res) =
 
     res.json({ ok: true, availability_ok: available, nights, spoken });
   } catch {
-    res.status(500).json({ ok: false, error: "internal_error" });
+    res.status(200).json({
+      ok: false, code: "INTERNAL_ERROR",
+      availability_ok: false, nights: 0,
+      spoken: "Es gab ein technisches Problem bei der Prüfung."
+    });
   }
 });
 
@@ -139,7 +158,6 @@ app.post("/retell/public/quote", (req, res) => {
       return res.status(400).json({ ok: false, error: "invalid dates" });
     }
 
-    // Simple Preislogik
     const basePerNight = 90;
     const boardAddMap = { "ohne verpflegung": 0, "frühstück": 8, "halbpension": 18, "vollpension": 28 };
     const boardAdd = boardAddMap[String(board).toLowerCase()] ?? 8;
@@ -152,11 +170,8 @@ app.post("/retell/public/quote", (req, res) => {
     res.json({
       ok: true,
       data: {
-        total_eur,
-        total_try,
-        fx,
-        currency_in: "EUR",
-        currency_out: "TRY",
+        total_eur, total_try, fx,
+        currency_in: "EUR", currency_out: "TRY",
         nights,
         breakdown: { basePerNight, boardAdd, clubCareAdd, board, adults: Number(adults), children: Number(children) }
       }
@@ -171,7 +186,6 @@ app.post("/retell/tool/commit_booking", requireToolSecret, (req, res) => {
   const { email, check_in, check_out, adults, children, board, club_care } = req.body || {};
   if (!email) return res.status(400).json({ ok: false, error: "missing email" });
 
-  // Hier würdest du DB & E-Mail machen; jetzt nur Dummy-Erfolg:
   return res.json({
     ok: true,
     data: {

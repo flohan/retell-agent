@@ -11,5 +11,3 @@ services:
         sync: false
     healthCheckPath: "/healthz"
     autoDeploy: true
-    
-
