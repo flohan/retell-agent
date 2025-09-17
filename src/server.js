@@ -31,7 +31,7 @@ const CONFIG = Object.freeze({
     apiKey: process.env.RETELL_API_KEY || "",
     wsUrl: process.env.RETELL_WS_URL || "wss://api.retellai.com/audio-websocket"
   },
-  hotelrunner: {  // HotelRunner Config
+  hotelrunner: {
     enabled: process.env.HOTELRUNNER_ENABLED === "true",
     apiKey: process.env.HOTELRUNNER_API_KEY || "",
     propertyId: parseInt(process.env.HOTELRUNNER_PROPERTY_ID) || 0,
@@ -316,6 +316,26 @@ const requireToolSecret = (req, res, next) => {
 };
 
 /* -------------------- API Endpoints -------------------- */
+
+// Root Route
+app.get("/", (req, res) => {
+  res.json({
+    ok: true,
+    service: "Retell Hotel Agent Backend",
+    version: "2.5.1-hr-fixed",
+    message: "Welcome! See /healthz for status or use documented endpoints.",
+    endpoints: [
+      "GET /healthz",
+      "GET /retell/tool/whoami",
+      "POST /retell/public/extract_core",
+      "POST /retell/public/quote",
+      "POST /retell/tool/extract_core",
+      "POST /retell/tool/check_availability",
+      "POST /retell/tool/commit_booking",
+      "POST /retell/tool/send_offer"
+    ]
+  });
+});
 
 // Health Check
 app.get("/healthz", (req, res) => {
@@ -697,6 +717,7 @@ app.use("*", (req, res) => {
     error: "route_not_found",
     path: req.path,
     available_endpoints: [
+      "GET  /",
       "GET  /healthz",
       "GET  /retell/tool/whoami",
       "POST /retell/public/extract_core", 
