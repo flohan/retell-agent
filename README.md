@@ -1,46 +1,63 @@
-# Retell Hotel Agent Backend (LLM + Rules)
+# 🏨 Retell AI Hotel Agent Backend v2.5.0
 
-**Features**
-- LLM-basierte Slot-Extraktion mit Rule-Fallback
-- Caching, Circuit Breaker, Concurrency-Limit
-- Public/Tool-Endpoints für Retell & andere Kanäle
-- Render.com-ready
+A minimal, production-ready Express backend for a Retell AI hotel voice agent with:
+- Zod-validated configuration
+- Prometheus metrics (`/metrics`)
+- Health check (`/healthz`)
+- Public routes under `/retell/public`
+- Tool routes under `/retell/tool` protected by `TOOL_SECRET`
+- Pino structured logging
 
-## Endpoints
-- `GET /healthz`
-- `POST /retell/public/extract_core` (rules)
-- `POST /retell/tool/extract_core_llm` (LLM, Header `tool-secret`)
-- `POST /retell/tool/check_availability_slim` (Header `tool-secret`)
-- `POST /retell/public/quote`
-- `POST /retell/tool/commit_booking` (Header `tool-secret`)
-- `POST /retell/tool/send_offer` (Header `tool-secret`)
+## Quickstart
 
-## Deploy (Render.com)
-1. Repo pushen mit `server.js`, `package.json`, `render.yaml`.
-2. Render erstellt Service via `render.yaml`.
-3. Im Dashboard `TOOL_SECRET` und `LLM_API_KEY` setzen (Environment → Add Secret).
-4. StartCommand: `node server.js` (steht schon in render.yaml).
-
-## Retell Tools
-Importiere `tools.json` in Retell und setze bei allen `/retell/tool/*` Tools den Header `tool-secret`.
-
-## Flow
-Optionaler Flow für Import: `flow_v009.json` (nutzt `tool-extract-core-llm`).
-
-## Smoke Tests
 ```bash
-# Health
-curl -s https://<your-service>.onrender.com/healthz | jq .
+# 1) Put your settings in .env (see .env.example)
+cp .env.example .env && edit .env
 
-# Rule parser
-curl -s -X POST https://<your-service>.onrender.com/retell/public/extract_core   -H 'content-type: application/json'   -d '{"utterance":"Ich will vom 22.10. bis 24.10. für 1 Person, keine Kinder buchen."}' | jq .
+# 2) Install deps
+npm install
 
-# LLM parser
-curl -s -X POST https://<your-service>.onrender.com/retell/tool/extract_core_llm   -H 'content-type: application/json' -H 'tool-secret: YOUR_SECRET'   -d '{"utterance":"Ich will vom 22.10. bis 24.10. für 1 Person, keine Kinder buchen."}' | jq .
+# 3) Start (dev watch)
+bash start.sh dev
+# or: npm run dev
 
-# Availability
-curl -s -X POST https://<your-service>.onrender.com/retell/tool/check_availability_slim   -H 'content-type: application/json' -H 'tool-secret: YOUR_SECRET'   -d '{"from_date":"2025-10-22","to_date":"2025-10-24","adults":1,"children":0}' | jq .
+# 4) Smoke tests
+curl -s http://localhost:$PORT/healthz
+curl -s http://localhost:$PORT/retell/public/ping
+curl -s -H "Authorization: Bearer $TOOL_SECRET" http://localhost:$PORT/retell/tool/whoami
+curl -s http://localhost:$PORT/metrics | head -n 20
 ```
 
-## Env
-Siehe `.env.example`. In Produktion unbedingt `TOOL_SECRET` setzen.
+## Routes
+
+- `GET /healthz` — liveness
+- `GET /metrics` — Prometheus metrics
+- `GET /retell/public/ping` — simple ping
+- `POST /retell/public/echo` — echoes posted JSON
+- `GET /retell/tool/whoami` — requires `TOOL_SECRET`
+- `POST /retell/tool/echo` — requires `TOOL_SECRET`
+- `POST /retell/tool/retell-check` — validates `RETELL_API_KEY` presence
+
+## Config
+
+Configuration is validated via Zod in `src/config.js`.
+
+| Var             | Required | Default | Notes |
+|-----------------|----------|---------|-------|
+| `NODE_ENV`      | no       | `dev`   | `dev`, `development`, `test`, `production` |
+| `PORT`          | no       | `10000` | HTTP port |
+| `CORS_ORIGIN`   | no       | `*`     | Comma-separated list or `*` |
+| `TOOL_SECRET`   | yes(*)   | —       | Required for `/retell/tool/*` |
+| `ENABLE_LLM`    | no       | `0`     | Toggle optional LLM usage |
+| `RETELL_API_KEY`| no       | —       | Needed for real Retell calls |
+
+(*) Tool routes will return 503 if not configured.
+
+## Production Notes
+
+- Run behind a reverse proxy (TLS, rate limiting, `X-Forwarded-For`).
+- Scrape `/metrics` with Prometheus / Grafana.
+- Set `LOG_LEVEL=info` (or `warn`) in production.
+- Use a stable `CORS_ORIGIN` instead of `*` for web clients.
+- Keep secrets in your vault (not in Git).
+

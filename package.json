@@ -1,16 +1,31 @@
 {
   "name": "retell-hotel-agent",
-  "version": "2.5.1",
-  "type": "module",
+  "version": "2.5.0",
+  "description": "Retell AI Hotel Agent Backend (metrics, zod-validated config, tool routes)",
   "private": true,
-  "engines": { "node": ">=20" },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "start": "node server.js",
-    "dev": "NODE_ENV=development node server.js"
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "lint": "eslint .",
+    "health": "curl -s http://localhost:${PORT:-10000}/healthz || true"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "pino": "^9.3.2",
+    "pino-http": "^10.3.0",
+    "prom-client": "^15.1.3",
+    "ws": "^8.17.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1"
   }
 }
