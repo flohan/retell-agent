@@ -1,6 +1,3 @@
-// server.js - Retell AI Hotel Agent Backend (Complete & Fixed)
-// Hochperformant, Production-Ready mit allen notwendigen Endpoints
-
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -39,7 +36,10 @@ const CONFIG = Object.freeze({
   }
 });
 
-const app = express();
+// Check TOOL_SECRET early to disable tool routes if not configured (per README)
+if (!CONFIG.security.toolSecret) {
+  console.warn("TOOL_SECRET not configured - tool routes will return 503");
+}
 
 /* -------------------- Enhanced Logging -------------------- */
 const logger = {
@@ -219,6 +219,7 @@ function extractWithRules(rawText) {
 }
 
 /* -------------------- Express Setup -------------------- */
+const app = express();
 app.use(cors({ origin: CONFIG.security.corsOrigin }));
 app.use(express.json({ limit: "200kb" }));
 app.use(express.urlencoded({ extended: true }));
@@ -234,24 +235,24 @@ app.use((req, res, next) => {
 
 /* -------------------- Auth Middleware -------------------- */
 const requireToolSecret = (req, res, next) => {
+  if (!CONFIG.security.toolSecret) {
+    logger.error("Tool secret not configured");
+    return res.status(503).json({ 
+      ok: false, 
+      error: "service_unavailable",
+      message: "Tool secret not configured" 
+    });
+  }
+
   const authHeader = req.header("authorization");
   const toolSecretHeader = req.header("tool-secret");
   
   // Support both Authorization: Bearer <secret> and tool-secret: <secret>
   let providedSecret = null;
   if (authHeader && authHeader.startsWith("Bearer ")) {
-    providedSecret = authHeader.substring(7);
+    providedSecret = authHeader.substring(7).trim();
   } else if (toolSecretHeader) {
-    providedSecret = toolSecretHeader;
-  }
-  
-  if (!CONFIG.security.toolSecret) {
-    logger.error("Tool secret not configured");
-    return res.status(500).json({ 
-      ok: false, 
-      error: "server_configuration_error",
-      message: "Authentication not properly configured" 
-    });
+    providedSecret = toolSecretHeader.trim();
   }
   
   if (!providedSecret || providedSecret !== CONFIG.security.toolSecret) {
@@ -641,9 +642,14 @@ app.use("*", (req, res) => {
 });
 
 /* -------------------- Server Start -------------------- */
-const server = app.listen(CONFIG.server.port, '0.0.0.0', () => {  // Füge '0.0.0.0' hinzu
-  // ... dein Logger-Code
-});
+const server = app.listen(CONFIG.server.port, '0.0.0.0', () => {
+  logger.info("Server started successfully", {
+    port: CONFIG.server.port,
+    environment: CONFIG.server.environment,
+    hasToolSecret: !!CONFIG.security.toolSecret,
+    llmEnabled: CONFIG.llm.enabled,
+    hasLlmKey: !!CONFIG.llm.apiKey
+  });
 
   console.log(`🚀 Retell Hotel Agent running on port ${CONFIG.server.port}`);
   console.log(`📊 Health: http://localhost:${CONFIG.server.port}/healthz`);
