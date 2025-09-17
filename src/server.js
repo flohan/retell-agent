@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 
 dotenv.config();
-
+console.log('TOOL_SECRET:', process.env.TOOL_SECRET);
 /* -------------------- Configuration -------------------- */
 const CONFIG = Object.freeze({
   server: {
